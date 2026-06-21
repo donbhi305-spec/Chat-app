@@ -1,0 +1,6 @@
+{
+  "name": "Veltrixa Hub",
+  "description": "High-fidelity social communication hub styled with responsive 3D particle nodes background, interactive vocal calls, and built-in full-stack Gemini AI portal link.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
