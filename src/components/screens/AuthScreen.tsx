@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { UserProfileData } from "../../types";
 import { LogIn, UserPlus, HelpCircle, Eye, EyeOff, Globe, Github } from "lucide-react";
+import { auth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "../../utils/firebase";
+import { updateProfile } from "firebase/auth";
 
 function getOrCreateDeviceId(): string {
   let devId = localStorage.getItem("veltrixa_device_id");
@@ -166,37 +168,35 @@ export default function AuthScreen({ onLoginSuccess }: { onLoginSuccess: (name: 
     setStrengthLevel(levels[Math.min(score, 4)]);
   };
 
-  const doLogin = () => {
+  const doLogin = async () => {
     if (!email || !password) {
       showToast("Please fill all fields");
       return;
     }
     setLoading(true);
-    setTimeout(() => {
+    try {
       const emailLower = email.trim().toLowerCase();
-      const users = getRegisteredUsers();
-      const match = users.find(u => u.email.toLowerCase() === emailLower);
+      const userCredential = await signInWithEmailAndPassword(auth, emailLower, password);
+      const user = userCredential.user;
       
-      if (match) {
-        if (match.password === password) {
-          spawnParticles(loginBtnRef);
-          showToast(`Access granted! Greeting ${match.name}...`);
-          setTimeout(() => {
-            setLoading(false);
-            onLoginSuccess(match.name, match.email);
-          }, 900);
-        } else {
-          setLoading(false);
-          showToast("Incorrect password for this account.");
-        }
-      } else {
+      spawnParticles(loginBtnRef);
+      const displayName = user.displayName || user.email?.split("@")[0] || "User";
+      showToast(`Access granted! Greeting ${displayName}...`);
+      setTimeout(() => {
         setLoading(false);
-        showToast("Email not found. Register a new account!");
+        onLoginSuccess(displayName, user.email || emailLower);
+      }, 900);
+    } catch (err: any) {
+      setLoading(false);
+      let errMsg = err.message || "Login failed.";
+      if (err.code === "auth/user-not-found" || err.code === "auth/invalid-credential" || err.code === "auth/wrong-password") {
+        errMsg = "Invalid password or registered email. Please verify credentials or sign up.";
       }
-    }, 1200);
+      showToast(errMsg);
+    }
   };
 
-  const doRegister = () => {
+  const doRegister = async () => {
     if (!regName || !regEmail || !regPass || !regConfirm) {
       showToast("Please fill all fields");
       return;
@@ -210,53 +210,53 @@ export default function AuthScreen({ onLoginSuccess }: { onLoginSuccess: (name: 
       return;
     }
     setLoading(true);
-    setTimeout(() => {
+    try {
       const emailLower = regEmail.trim().toLowerCase();
-      const users = getRegisteredUsers();
-      const exists = users.some(u => u.email.toLowerCase() === emailLower);
+      const userCredential = await createUserWithEmailAndPassword(auth, emailLower, regPass);
+      const user = userCredential.user;
       
-      if (exists) {
-        setLoading(false);
-        showToast("Email address already registered.");
-        return;
+      // Update displayName
+      try {
+        await updateProfile(user, { displayName: regName.trim() });
+      } catch (profileErr) {
+        console.warn("Failed to update profile name on Firebase: ", profileErr);
       }
-      
-      const newUser = {
-        name: regName.trim(),
-        email: emailLower,
-        password: regPass
-      };
-      
-      saveRegisteredUser(newUser);
+
       spawnParticles(registerBtnRef);
       showToast("Account locked in! Booting Veltrixa workspace...");
       
       setTimeout(() => {
         setLoading(false);
-        onLoginSuccess(newUser.name, newUser.email);
+        onLoginSuccess(regName.trim(), emailLower);
       }, 900);
-    }, 1200);
+    } catch (err: any) {
+      setLoading(false);
+      let errMsg = err.message || "Registration failed.";
+      if (err.code === "auth/email-already-in-use") {
+        errMsg = "Email is already registered on Firebase. Please login or reset.";
+      } else if (err.code === "auth/weak-password") {
+        errMsg = "Password is too weak. Must be at least 6 characters.";
+      }
+      showToast(errMsg);
+    }
   };
 
-  const doForgot = () => {
+  const doForgot = async () => {
     if (!email) {
       showToast("Enter your email first");
       return;
     }
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const { sendPasswordResetEmail } = await import("firebase/auth");
+      await sendPasswordResetEmail(auth, email.trim().toLowerCase());
       setLoading(false);
-      const emailLower = email.trim().toLowerCase();
-      const users = getRegisteredUsers();
-      const match = users.find(u => u.email.toLowerCase() === emailLower);
-      
-      if (match) {
-        showToast(`Secure recover: Password for ${match.email} is "${match.password}"`);
-        setActivePanel("login");
-      } else {
-        showToast("No account registered with this email address.");
-      }
-    }, 1200);
+      showToast("Password reset email sent! Check your inbox.");
+      setActivePanel("login");
+    } catch (err: any) {
+      setLoading(false);
+      showToast(err.message || "Failed to trigger recovery email.");
+    }
   };
 
   const ssoLogin = (name: string, emailStr: string) => {

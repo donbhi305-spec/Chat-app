@@ -267,7 +267,7 @@ export function ExploreScreen({ setScreen, showToast }: ScreenProps) {
       const isJoined = !prev[id];
       showToast(isJoined ? `You joined ${name}!` : `Left ${name}`);
       const updated = { ...prev, [id]: isJoined };
-      VDB.setJoinedCommunities(updated);
+      VDB.saveJoinedCommunities(updated);
       return updated;
     });
   };

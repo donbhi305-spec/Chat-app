@@ -12,6 +12,7 @@ import { ProfileScreen, EditProfileScreen, SettingScreen, AccountSecurityScreen,
 import { CallsScreen, VoiceCallScreen, VideoCallScreen } from "./components/screens/CallsAndHistoryScreens";
 import { UserProfileScreen, ActivityScreen, FilesScreen } from "./components/screens/LibraryAndActivityScreens";
 import { AiAssistantIntroScreen, AiChatScreen, GroupChatScreen1, GroupChatScreen2 } from "./components/screens/AiAssistantScreens";
+import DatabaseSyncScreen from "./components/screens/DatabaseSyncScreen";
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -198,6 +199,8 @@ export default function App() {
         return <FeedbackScreen setScreen={navigateWithHistory} showToast={showToast} />;
       case AppScreen.ABOUT_APP:
         return <AboutAppScreen setScreen={navigateWithHistory} showToast={showToast} />;
+      case AppScreen.DATABASE_SYNC:
+        return <DatabaseSyncScreen setScreen={navigateWithHistory} showToast={showToast} />;
 
       // Calls activity
       case AppScreen.CALLS:

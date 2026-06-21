@@ -31,7 +31,8 @@ export enum AppScreen {
   DATA_STORAGE = "DATA_STORAGE",
   HELP_CENTER = "HELP_CENTER",
   FEEDBACK = "FEEDBACK",
-  ABOUT_APP = "ABOUT_APP"
+  ABOUT_APP = "ABOUT_APP",
+  DATABASE_SYNC = "DATABASE_SYNC"
 }
 
 export interface ChatMessage {

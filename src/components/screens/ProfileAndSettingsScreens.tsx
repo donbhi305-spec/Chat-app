@@ -370,6 +370,13 @@ export function SettingScreen({ user, setScreen, showToast, triggerLogout }: Omi
         {/* Preferences */}
         <div className="text-[11px] text-slate-500 uppercase tracking-widest font-bold px-6 mt-4 mb-2">Preferences</div>
         <div className="flex flex-col bg-slate-900/60 border border-white/5 rounded-2xl mx-4 overflow-hidden">
+          <div onClick={() => setScreen(AppScreen.DATABASE_SYNC)} className="flex items-center justify-between p-4 border-b border-white/5 hover:bg-white/5 cursor-pointer">
+            <span className="text-sm font-medium text-cyan-400">Database & Sync (Supabase)</span>
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] font-bold text-slate-500 uppercase">Config</span>
+              <ChevronRight size={15} className="text-slate-500" />
+            </div>
+          </div>
           <div onClick={() => setScreen(AppScreen.CHAT_PREFERENCES)} className="flex items-center justify-between p-4 border-b border-white/5 hover:bg-white/5 cursor-pointer">
             <span className="text-sm font-medium">Chat Preferences</span>
             <ChevronRight size={15} className="text-slate-500" />
