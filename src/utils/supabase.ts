@@ -65,61 +65,83 @@ export function getSupabaseClient(): SupabaseClient | null {
 
 // SQL Generator to make it instantly ready for user Copy-Pasting in Supabase console
 export function generateSupabaseSQL(): string {
-  return `-- 1. CHATS Table Schema
-CREATE TABLE IF NOT EXISTS public.veltrixa_chats (
-  id TEXT PRIMARY KEY,
-  chat_id TEXT NOT NULL,
-  sender TEXT NOT NULL,
+  return `-- ==========================================================
+-- SUPABASE PRODUCTION DATABASE SCHEMA FOR CHAT VELTRIXA
+-- (The full 24-table production schema is located in '/supabase_schema.sql' in your project root!)
+-- ==========================================================
+
+-- Key Active Tables for Realtime Syncing & Security Verification:
+
+-- 1. profiles
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id UUID PRIMARY KEY,
+  username TEXT UNIQUE,
+  display_name TEXT,
+  bio TEXT,
+  avatar_url TEXT,
+  banner_url TEXT,
+  followers_count INT DEFAULT 0,
+  following_count INT DEFAULT 0,
+  post_count INT DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow public read access to profiles" ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "Allow individual write access to own profile" ON public.profiles FOR ALL USING (auth.uid() = id);
+
+-- 2. user_settings
+CREATE TABLE IF NOT EXISTS public.user_settings (
+  id UUID PRIMARY KEY,
+  theme TEXT DEFAULT 'dark',
+  notifications_enabled BOOLEAN DEFAULT true,
+  offline_mode BOOLEAN DEFAULT false,
+  language TEXT DEFAULT 'en',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.user_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow individual access to settings" ON public.user_settings FOR ALL USING (auth.uid() = id);
+
+-- 3. conversations & messages
+CREATE TABLE IF NOT EXISTS public.conversations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  is_group BOOLEAN DEFAULT false,
+  group_name TEXT,
+  last_message_text TEXT,
+  last_message_time TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS public.messages (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  conversation_id UUID REFERENCES public.conversations(id) ON DELETE CASCADE NOT NULL,
+  sender_id UUID NOT NULL,
   text TEXT NOT NULL,
-  time TEXT NOT NULL,
+  image_url TEXT,
+  is_read BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Enable RLS & Policies
-ALTER TABLE public.veltrixa_chats ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow public read-write access for demo" ON public.veltrixa_chats FOR ALL USING (true) WITH CHECK (true);
-
--- 2. CALLS Table Schema
-CREATE TABLE IF NOT EXISTS public.veltrixa_calls (
+-- 4. posts & communities
+CREATE TABLE IF NOT EXISTS public.communities (
   id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  type TEXT NOT NULL,
-  time TEXT NOT NULL,
+  name TEXT UNIQUE NOT NULL,
+  description TEXT,
+  avatar_url TEXT,
+  members_count INT DEFAULT 1,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Enable RLS & Policies
-ALTER TABLE public.veltrixa_calls ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow public read-write access for demo" ON public.veltrixa_calls FOR ALL USING (true) WITH CHECK (true);
-
--- 3. FILES Table Schema
-CREATE TABLE IF NOT EXISTS public.veltrixa_files (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  size TEXT NOT NULL,
-  format TEXT NOT NULL,
-  date TEXT NOT NULL,
-  category TEXT NOT NULL,
+CREATE TABLE IF NOT EXISTS public.posts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  profile_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+  content TEXT,
+  likes_count INT DEFAULT 0,
+  comments_count INT DEFAULT 0,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
-
--- Enable RLS & Policies
-ALTER TABLE public.veltrixa_files ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow public read-write access for demo" ON public.veltrixa_files FOR ALL USING (true) WITH CHECK (true);
-
--- 4. ACTIVITY_LOGS Table Schema
-CREATE TABLE IF NOT EXISTS public.veltrixa_activities (
-  id TEXT PRIMARY KEY,
-  type TEXT NOT NULL,
-  title TEXT NOT NULL,
-  body TEXT NOT NULL,
-  time TEXT NOT NULL,
-  unread BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
--- Enable RLS & Policies
-ALTER TABLE public.veltrixa_activities ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow public read-write access for demo" ON public.veltrixa_activities FOR ALL USING (true) WITH CHECK (true);
 `;
 }

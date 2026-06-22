@@ -18,10 +18,7 @@ function getOrCreateDeviceId(): string {
   return devId;
 }
 
-const DEFAULT_USERS = [
-  { name: "Admin User", email: "admin@veltrixa.com", password: "password" },
-  { name: "Liam Sterling", email: "liam@sterling.dev", password: "password123" }
-];
+const DEFAULT_USERS: any[] = [];
 
 function getRegisteredUsers(): any[] {
   const saved = localStorage.getItem("veltrixa_registered_users");
@@ -220,6 +217,31 @@ export default function AuthScreen({ onLoginSuccess }: { onLoginSuccess: (name: 
         await updateProfile(user, { displayName: regName.trim() });
       } catch (profileErr) {
         console.warn("Failed to update profile name on Firebase: ", profileErr);
+      }
+
+      // Automatically create Profile row and User settings row in Supabase
+      try {
+        const { getSupabaseClient } = await import("../../utils/supabase");
+        const supabase = getSupabaseClient();
+        if (supabase) {
+          await supabase.from("profiles").upsert({
+            id: user.uid,
+            username: `@${regName.trim().toLowerCase().replace(/\s+/g, "")}`,
+            display_name: regName.trim(),
+            bio: "Welcome to Veltrixa network! Let's build.",
+            created_at: new Date().toISOString()
+          });
+
+          await supabase.from("user_settings").upsert({
+            id: user.uid,
+            theme: "dark",
+            notifications_enabled: true,
+            language: "en"
+          });
+          console.log("Successfully seeded Supabase profile and settings!");
+        }
+      } catch (sbErr) {
+        console.warn("Could not insert initial Supabase rows (schema might not be applied yet):", sbErr);
       }
 
       spawnParticles(registerBtnRef);

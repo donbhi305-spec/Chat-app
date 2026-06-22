@@ -1,5 +1,5 @@
 import { AppScreen } from "../../types";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { VDB } from "../../utils/db";
 import { Search, Compass, MessageSquare, Plus, UserPlus, PhoneCall, Sparkles, Code, Image as ImageIcon, ArrowLeft, Globe, Star, Users, MapPin, ChevronRight, User } from "lucide-react";
 
@@ -198,20 +198,41 @@ export function DashboardScreen({ setScreen, showToast }: ScreenProps) {
 export function ExploreScreen({ setScreen, showToast }: ScreenProps) {
   const [activeTab, setActiveTab] = useState<'for_you' | 'ai_tools' | 'community' | 'learning'>('for_you');
   const [joined, setJoined] = useState<Record<string, boolean>>(() => VDB.getJoinedCommunities());
+  const [communities, setCommunities] = useState<any[]>([]);
+  const [publicCommunities, setPublicCommunities] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const communities = [
-    { id: "galactic", name: "Galactic Explorers", count: "8.2K members", color: "bg-cyan-500/10 text-cyan-400" },
-    { id: "creators", name: "AI Creators Hub", count: "5.7K members", color: "bg-purple-500/12 text-purple-400" },
-    { id: "coders", name: "Code Wizards", count: "6.1K members", color: "bg-pink-500/10 text-pink-500" },
-  ];
-
-  const publicCommunities = [
-    { id: "galactic", name: "Galactic Explorers", desc: "For aerospace tech, orbital design, and telemetry systems.", count: "8.2K members", color: "bg-cyan-500/10 text-cyan-400" },
-    { id: "creators", name: "AI Creators Hub", desc: "Share prompting frameworks, image presets, and custom workflows.", count: "5.7K members", color: "bg-purple-500/12 text-purple-400" },
-    { id: "coders", name: "Code Wizards Guild", desc: "Discuss full-stack patterns, database models, and systems engineering.", count: "6.1K members", color: "bg-pink-500/10 text-pink-500" },
-    { id: "quantum", name: "Quantum Computing Lab", desc: "Exchanging views on quantum state circuits, logic gates, and qubits.", count: "4.3K members", color: "bg-amber-500/10 text-amber-500" },
-    { id: "cybersec", name: "Cyber Security Force", desc: "Securing web endpoints, firewalls, threat analysis, and pen-testing.", count: "7.1K members", color: "bg-emerald-500/10 text-emerald-400" },
-  ];
+  useEffect(() => {
+    async function fetchDbGroups() {
+      setLoading(true);
+      try {
+        const { getSupabaseClient } = await import("../../utils/supabase");
+        const supabase = getSupabaseClient();
+        if (supabase) {
+          const { data, error } = await supabase.from("communities").select("*");
+          if (!error && data) {
+            const formatted = data.map(c => ({
+              id: c.id,
+              name: c.name,
+              desc: c.description || "Active community workspace.",
+              count: `${c.members_count || 1} members`,
+              color: "bg-purple-500/10 text-purple-400"
+            }));
+            setCommunities(formatted.slice(0, 3));
+            setPublicCommunities(formatted);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Could not load dynamic community groups from Supabase.", err);
+      } finally {
+        setLoading(false);
+      }
+      setCommunities([]);
+      setPublicCommunities([]);
+    }
+    fetchDbGroups();
+  }, []);
 
   const aiTools = [
     {
@@ -355,30 +376,36 @@ export function ExploreScreen({ setScreen, showToast }: ScreenProps) {
             </div>
 
             <div className="flex flex-col gap-2.5 px-4 mb-6">
-              {communities.map((comm) => (
-                <div
-                  key={comm.id}
-                  className="flex items-center gap-3.5 p-3.5 bg-slate-900 border border-white/5 rounded-2xl hover:border-purple-500/20 transition-all font-sans"
-                >
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${comm.color}`}>
-                    <Users size={19} />
-                  </div>
-                  <div className="flex-1 min-width-0">
-                    <div className="text-sm font-semibold tracking-wide text-slate-200">{comm.name}</div>
-                    <div className="text-xs text-slate-500 mt-0.5">{comm.count}</div>
-                  </div>
-                  <button
-                    onClick={() => handleJoin(comm.id, comm.name)}
-                    className={`py-1.5 px-4 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                      joined[comm.id]
-                        ? "bg-green-500/10 text-green-400 border border-green-500/30"
-                        : "bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/18"
-                    }`}
+              {communities.length > 0 ? (
+                communities.map((comm) => (
+                  <div
+                    key={comm.id}
+                    className="flex items-center gap-3.5 p-3.5 bg-slate-900 border border-white/5 rounded-2xl hover:border-purple-500/20 transition-all font-sans"
                   >
-                    {joined[comm.id] ? "Joined" : "Join"}
-                  </button>
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-purple-500/10 text-purple-400">
+                      <Users size={19} />
+                    </div>
+                    <div className="flex-1 min-width-0">
+                      <div className="text-sm font-semibold tracking-wide text-slate-200">{comm.name}</div>
+                      <div className="text-xs text-slate-500 mt-0.5">{comm.count}</div>
+                    </div>
+                    <button
+                      onClick={() => handleJoin(comm.id, comm.name)}
+                      className={`py-1.5 px-4 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                        joined[comm.id]
+                          ? "bg-green-500/10 text-green-400 border border-green-500/30"
+                          : "bg-cyan-500/10 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-500/18"
+                      }`}
+                    >
+                      {joined[comm.id] ? "Joined" : "Join"}
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <div className="p-4 rounded-2xl border border-white/5 bg-slate-900/40 text-center text-xs text-slate-500">
+                  No featured communities synced yet. Add new ones in the Chats tab!
                 </div>
-              ))}
+              )}
             </div>
 
             {/* Trending tech topics */}
@@ -483,39 +510,49 @@ export function ExploreScreen({ setScreen, showToast }: ScreenProps) {
               <p className="text-[10px] text-slate-500 mt-0.5">Explore active community boards and spaces.</p>
             </div>
 
-            {publicCommunities.map((comm) => (
-              <div
-                key={comm.id}
-                className="p-4 bg-slate-900 border border-white/5 rounded-2xl hover:border-purple-500/20 transition-all flex flex-col gap-2.5"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-center text-purple-400 shrink-0 font-bold">
-                      #
+            {publicCommunities.length > 0 ? (
+              publicCommunities.map((comm) => (
+                <div
+                  key={comm.id}
+                  className="p-4 bg-slate-900 border border-white/5 rounded-2xl hover:border-purple-500/20 transition-all flex flex-col gap-2.5"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/25 flex items-center justify-center text-purple-400 shrink-0 font-bold">
+                        #
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-slate-200">{comm.name}</div>
+                        <div className="text-[10px] text-slate-500 mt-0.5">{comm.count}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-sm font-semibold text-slate-200">{comm.name}</div>
-                      <div className="text-[10px] text-slate-500 mt-0.5">{comm.count}</div>
-                    </div>
+
+                    <button
+                      onClick={() => handleJoin(comm.id, comm.name)}
+                      className={`py-1 px-3.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
+                        joined[comm.id]
+                          ? "bg-green-500/10 text-green-400 border border-green-500/30"
+                          : "bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/18"
+                      }`}
+                    >
+                      {joined[comm.id] ? "Joined" : "Join"}
+                    </button>
                   </div>
 
-                  <button
-                    onClick={() => handleJoin(comm.id, comm.name)}
-                    className={`py-1 px-3.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer ${
-                      joined[comm.id]
-                        ? "bg-green-500/10 text-green-400 border border-green-500/30"
-                        : "bg-purple-500/10 text-purple-400 border border-purple-500/30 hover:bg-purple-500/18"
-                    }`}
-                  >
-                    {joined[comm.id] ? "Joined" : "Join"}
-                  </button>
+                  <p className="text-xs text-slate-450 leading-relaxed pl-1 font-light">
+                    {comm.desc}
+                  </p>
                 </div>
-
-                <p className="text-xs text-slate-400 leading-relaxed pl-1">
-                  {comm.desc}
+              ))
+            ) : (
+              <div className="flex flex-col items-center justify-center py-10 px-4 border border-dashed border-white/10 rounded-2xl bg-slate-905/40 text-center">
+                <div className="text-3xl text-slate-650">🌐</div>
+                <h3 className="text-xs font-bold font-rajdhani uppercase text-slate-350 tracking-wider mt-3">Community Hub Unlinked</h3>
+                <p className="text-[10px] text-slate-500 mt-1.5 max-w-[200px] leading-relaxed">
+                  No public communities synced to your Supabase tables yet. Go to Chats tab and click "+" to deploy a channel!
                 </p>
               </div>
-            ))}
+            )}
           </div>
         )}
 
@@ -603,29 +640,117 @@ interface GroupsScreenProps {
   setSelectedProfileUser?: (user: { name: string; avatarColor: string } | null) => void;
 }
 
-// ══════════ 3. GROUPS LIST SCREEN ══════════
+// ══════════ 3. GROUPS LIST SCREEN (SUPABASE CONNECTED) ══════════
 export function GroupsScreen({ setScreen, showToast, setActiveDm, activeTab = "groups", setActiveTab, setSelectedProfileUser }: GroupsScreenProps) {
   const [localActiveTab, setLocalActiveTab] = useState<"groups" | "personal">("groups");
   const currentTab = setActiveTab ? activeTab : localActiveTab;
   const updateTab = setActiveTab || setLocalActiveTab;
 
-  const myGroups = [
-    { id: "innovators", name: "AI Innovators", members: "12.4K members", badge: 3, time: "10:30 AM", col: "bg-cyan-500/10 text-cyan-400", target: AppScreen.GROUP_CHAT_2 },
-    { id: "enthusiasts", name: "Space Enthusiasts", members: "9.8K members", badge: 8, time: "Yesterday", col: "bg-purple-500/12 text-purple-400", target: AppScreen.GROUP_CHAT },
-  ];
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dbCommunities, setDbCommunities] = useState<any[]>([]);
+  const [dbProfiles, setDbProfiles] = useState<any[]>([]);
+  const [joined, setJoined] = useState<Record<string, boolean>>(() => VDB.getJoinedCommunities());
+  const [loading, setLoading] = useState(false);
 
-  const discoverGroups = [
-    { id: "designers", name: "Design Masters", members: "6.2K members", col: "bg-pink-500/10 text-pink-500" },
-    { id: "devs", name: "Developers Hub", members: "15.6K members", col: "bg-green-500/10 text-green-400" },
-  ];
+  // New community state hook
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState("");
+  const [newGroupDesc, setNewGroupDesc] = useState("");
 
-  const personalChats = [
-    { id: "sophia", name: "Sophia Carter", status: "Active 5m ago", badge: 0, time: "12:15 PM", col: "bg-pink-500/10 text-pink-400", target: AppScreen.AI_CHAT, lastMsg: "Hey, are you free for a call?" },
-    { id: "ai_helper", name: "AI Assistant", status: "AI Solution Bot", badge: 3, time: "10:30 AM", col: "bg-purple-500/15 text-purple-400", target: AppScreen.AI_CHAT, lastMsg: "How can I help you improve?" },
-    { id: "spark", name: "Creative Spark AI", status: "Writing Bot", badge: 2, time: "Yesterday", col: "bg-cyan-500/10 text-cyan-400", target: AppScreen.AI_CHAT, lastMsg: "Write a sci-fi story about space..." },
-    { id: "code_helper", name: "Code Assistant AI", status: "Dev Bot", badge: 1, time: "May 20", col: "bg-pink-500/15 text-pink-400", target: AppScreen.AI_CHAT, lastMsg: "Explain this code snippet." },
-    { id: "ethan", name: "Ethan Walker", status: "Offline", badge: 0, time: "May 18", col: "bg-teal-500/10 text-teal-400", target: AppScreen.AI_CHAT, lastMsg: "I've uploaded the project files!" },
-  ];
+  const refreshData = async () => {
+    setLoading(true);
+    try {
+      const { getSupabaseClient } = await import("../../utils/supabase");
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        // Fetch communities
+        const { data: comms, error: commsErr } = await supabase.from("communities").select("*");
+        if (!commsErr && comms) {
+          setDbCommunities(comms);
+        }
+
+        // Fetch users
+        const { data: profs, error: profsErr } = await supabase.from("profiles").select("*").limit(20);
+        if (!profsErr && profs) {
+          setDbProfiles(profs);
+        }
+      }
+    } catch (e) {
+      console.warn("Offline fallback state active for chats.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshData();
+  }, []);
+
+  const handleCreateGroupSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newGroupName.trim()) return;
+
+    try {
+      const { getSupabaseClient } = await import("../../utils/supabase");
+      const supabase = getSupabaseClient();
+      if (supabase) {
+        const id = newGroupName.toLowerCase().replace(/\s+/g, "-") + "-" + Math.floor(Math.random() * 1000);
+        const { error } = await supabase.from("communities").insert({
+          id,
+          name: newGroupName,
+          description: newGroupDesc || "General conversation channel.",
+          members_count: 1
+        });
+
+        if (error) {
+          showToast(`Error creating community: ${error.message}`);
+        } else {
+          showToast(`Community channel "#${newGroupName}" deployed!`);
+          setJoined(prev => {
+            const updated = { ...prev, [id]: true };
+            VDB.saveJoinedCommunities(updated);
+            return updated;
+          });
+          setNewGroupName("");
+          setNewGroupDesc("");
+          setIsCreateOpen(false);
+          refreshData();
+        }
+      } else {
+        showToast("Database client offline.");
+      }
+    } catch (err) {
+      showToast("Could not publish community to live network.");
+    }
+  };
+
+  // Filter groups
+  const joinedGroups = dbCommunities.filter(c => joined[c.id] && c.name.toLowerCase().includes(searchQuery.toLowerCase()));
+  const discoverGroups = dbCommunities.filter(c => !joined[c.id] && c.name.toLowerCase().includes(searchQuery.toLowerCase()));
+
+  // Filter people
+  const personalChats = dbProfiles
+    .filter(p => p.display_name?.toLowerCase().includes(searchQuery.toLowerCase()) || p.username?.toLowerCase().includes(searchQuery.toLowerCase()))
+    .map((p, i) => ({
+      id: p.id || String(i),
+      name: p.display_name || p.username || "Explorer Node",
+      status: p.followers_count > 0 ? `${p.followers_count} network nodes` : "Offline",
+      badge: i === 0 ? 1 : 0,
+      time: "Just Now",
+      col: "bg-cyan-500/10 text-cyan-450",
+      target: AppScreen.AI_CHAT,
+      lastMsg: p.bio || "Secure end-to-end telemetry channel established."
+    }));
+
+  const handleJoin = (id: string, name: string) => {
+    setJoined((prev) => {
+      const isJoined = !prev[id];
+      showToast(isJoined ? `You joined ${name}!` : `Left ${name}`);
+      const updated = { ...prev, [id]: isJoined };
+      VDB.saveJoinedCommunities(updated);
+      return updated;
+    });
+  };
 
   return (
     <div className="screen w-full max-w-[420px] h-full max-h-[860px] bg-slate-950/85 backdrop-blur-2xl border border-purple-500/25 rounded-[36px] flex flex-col overflow-hidden relative shadow-[0_0_60px_rgba(155,93,229,0.12)]">
@@ -638,7 +763,7 @@ export function GroupsScreen({ setScreen, showToast, setActiveDm, activeTab = "g
             <ArrowLeft size={18} />
           </button>
           <h1 className="text-base font-bold tracking-tight text-slate-100 flex-1 text-center font-rajdhani uppercase">Chats & Channels</h1>
-          <button onClick={() => showToast(currentTab === "groups" ? "Create community channel coming soon" : "Start a direct chat coming soon")} className="p-1.5 rounded-full hover:bg-white/5 text-slate-350 shrink-0">
+          <button onClick={() => setIsCreateOpen(true)} className="p-1.5 bg-purple-500/10 text-purple-400 border border-purple-500/25 hover:bg-purple-500/20 rounded-full shrink-0 cursor-pointer">
             <Plus size={18} />
           </button>
         </div>
@@ -649,6 +774,8 @@ export function GroupsScreen({ setScreen, showToast, setActiveDm, activeTab = "g
           <input
             type="text"
             placeholder={currentTab === "groups" ? "Search groups & channels..." : "Search direct messages..."}
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
             className="flex-1 bg-transparent text-xs text-slate-200 outline-none placeholder:text-slate-600"
           />
         </div>
@@ -677,36 +804,75 @@ export function GroupsScreen({ setScreen, showToast, setActiveDm, activeTab = "g
           </button>
         </div>
 
+        {/* Create Community Popup Modal */}
+        {isCreateOpen && (
+          <div className="mx-4 my-3 p-4 bg-slate-900 border border-purple-500/30 rounded-2xl animate-fade-in relative">
+            <h2 className="text-xs font-bold text-slate-100 uppercase tracking-wider mb-3">Deploy Community Channel</h2>
+            <form onSubmit={handleCreateGroupSubmit} className="flex flex-col gap-3">
+              <input
+                type="text"
+                placeholder="Channel Name (e.g. Code Wizards)"
+                value={newGroupName}
+                onChange={e => setNewGroupName(e.target.value)}
+                className="w-full bg-slate-950 border border-white/10 text-xs rounded-xl py-2 px-3 text-slate-200 outline-none focus:border-purple-500/40"
+                required
+              />
+              <input
+                type="text"
+                placeholder="Topics/Description..."
+                value={newGroupDesc}
+                onChange={e => setNewGroupDesc(e.target.value)}
+                className="w-full bg-slate-950 border border-white/10 text-xs rounded-xl py-2 px-3 text-slate-200 outline-none focus:border-purple-500/40"
+              />
+              <div className="flex justify-end gap-2 mt-1">
+                <button
+                  type="button"
+                  onClick={() => setIsCreateOpen(false)}
+                  className="px-3 py-1.5 bg-white/5 border border-white/5 rounded-lg text-[10.5px] text-slate-400 hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-3.5 py-1.5 bg-gradient-to-r from-cyan-500 to-purple-500 rounded-lg text-[10.5px] font-bold text-white shadow-md cursor-pointer"
+                >
+                  Create
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
+
         {currentTab === "groups" ? (
           <div className="animate-fade-in">
             {/* Group lists */}
             <div className="text-[11px] text-slate-500 uppercase tracking-widest font-semibold px-6 mt-4 mb-2">My Groups</div>
             <div className="flex flex-col gap-2.5 px-4 mb-5">
-              {myGroups.map((g) => (
+              {joinedGroups.map((g) => (
                 <div
                   key={g.id}
-                  onClick={() => setScreen(g.target)}
+                  onClick={() => setScreen(AppScreen.GROUP_CHAT)}
                   className="flex items-center justify-between p-3 bg-slate-900 border border-white/5 rounded-2xl hover:border-purple-500/30 cursor-pointer shadow-md transition-all"
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${g.col}`}>
+                    <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center shrink-0">
                       <Users size={19} />
                     </div>
                     <div>
                       <div className="text-sm font-semibold tracking-wide text-slate-200">{g.name}</div>
-                      <div className="text-xs text-slate-500 mt-1">{g.members}</div>
+                      <div className="text-xs text-slate-500 mt-1">{g.members_count || 1} members</div>
                     </div>
                   </div>
                   <div className="text-right flex flex-col items-end gap-1.5">
-                    <span className="text-[10px] text-slate-500">{g.time}</span>
-                    {g.badge > 0 && (
-                      <span className="w-5 h-5 rounded-full bg-purple-500 flex items-center justify-center text-[9px] font-bold text-white shadow-[0_0_8px_rgba(155,93,229,0.5)]">
-                        {g.badge}
-                      </span>
-                    )}
+                    <span className="text-[10px] text-slate-500">Active</span>
                   </div>
                 </div>
               ))}
+              {joinedGroups.length === 0 && (
+                <p className="text-[10.5px] text-slate-600 font-light text-center py-4 bg-slate-900/20 border border-dashed border-white/5 rounded-2xl">
+                  You haven't joined any groups yet. See list below!
+                </p>
+              )}
             </div>
 
             <div className="text-[11px] text-slate-500 uppercase tracking-widest font-semibold px-6 mt-4 mb-2">Discover Groups</div>
@@ -714,23 +880,28 @@ export function GroupsScreen({ setScreen, showToast, setActiveDm, activeTab = "g
               {discoverGroups.map((g) => (
                 <div
                   key={g.id}
-                  onClick={() => showToast(`Request to join ${g.name} sent`)}
                   className="flex items-center justify-between p-3 bg-slate-900 border border-white/5 rounded-2xl hover:border-cyan-500/30 cursor-pointer shadow-md transition-all"
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${g.col}`}>
+                    <div className="w-10 h-10 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center shrink-0">
                       <Users size={19} />
                     </div>
                     <div>
                       <div className="text-sm font-semibold tracking-wide text-slate-200">{g.name}</div>
-                      <div className="text-xs text-slate-500 mt-1">{g.members}</div>
+                      <div className="text-xs text-slate-400 mt-0.5 truncate max-w-[180px] font-light">{g.description}</div>
                     </div>
                   </div>
-                  <button className="py-1 px-3.5 rounded-lg border border-cyan-500/30 text-cyan-400 text-[10.5px] font-bold">
+                  <button
+                    onClick={() => handleJoin(g.id, g.name)}
+                    className="py-1 px-3.5 rounded-lg border border-cyan-500/30 hover:bg-cyan-500/10 text-cyan-400 text-[10.5px] font-bold"
+                  >
                     Join
                   </button>
                 </div>
               ))}
+              {discoverGroups.length === 0 && (
+                <p className="text-[10.5px] text-slate-605 font-light text-center py-4">No discovery channels loaded.</p>
+              )}
             </div>
           </div>
         ) : (
@@ -756,7 +927,7 @@ export function GroupsScreen({ setScreen, showToast, setActiveDm, activeTab = "g
                         }
                         setScreen(AppScreen.USER_PROFILE);
                       }}
-                      className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${c.col} hover:scale-105 active:scale-95 transition-all`}
+                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-cyan-500/10 text-cyan-400 hover:scale-105 active:scale-95 transition-all"
                     >
                       <User size={19} />
                     </div>
@@ -777,43 +948,14 @@ export function GroupsScreen({ setScreen, showToast, setActiveDm, activeTab = "g
                   </div>
                 </div>
               ))}
+              {personalChats.length === 0 && (
+                <p className="text-[10.5px] text-slate-600 font-light text-center py-6 bg-slate-900/20 border border-dashed border-white/5 rounded-2xl">
+                  No other active workspace nodes located. Invite profiles using the top bar!
+                </p>
+              )}
             </div>
           </div>
         )}
-      </div>
-
-      {/* Navigation */}
-      <div className="bottom-nav">
-        <button onClick={() => setScreen(AppScreen.MAIN)} className="nav-item">
-          <svg className="w-[19px] h-[19px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-          </svg>
-          <span className="text-[10px] mt-1 font-semibold tracking-wider text-slate-300">Home</span>
-        </button>
-
-        <button onClick={() => setScreen(AppScreen.EXPLORE)} className="nav-item">
-          <Search size={19} className="text-slate-500" />
-          <span className="text-[10px] mt-1 font-semibold tracking-wider text-slate-400">Explore</span>
-        </button>
-
-        <button onClick={() => setScreen(AppScreen.DASHBOARD)} className="nav-fab shadow-[0_4px_20px_rgba(155,93,229,0.5)]">
-          <Plus size={22} className="text-white" />
-        </button>
-
-        <button className="nav-item active">
-          <svg className="w-[19px] h-[19px]" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-          </svg>
-          <span className="text-[10px] mt-1 font-semibold tracking-wider">Chats</span>
-        </button>
-
-        <button onClick={() => setScreen(AppScreen.PROFILE)} className="nav-item">
-          <svg className="w-[19px] h-[19px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="8" r="4" />
-            <path d="M4 20c0-4 3.58-7 8-7s8 3 8 7" />
-          </svg>
-          <span className="text-[10px] mt-1 font-semibold tracking-wider text-slate-400">Profile</span>
-        </button>
       </div>
     </div>
   );
@@ -852,7 +994,7 @@ export function AddFriendsScreen({ setScreen, showToast }: ScreenProps) {
       <div className="flex-1 overflow-y-auto scrollbar-none pb-12">
         {/* Header */}
         <div className="flex items-center gap-3 px-6 pt-5 pb-3 bg-slate-950/70 backdrop-blur-md sticky top-0 z-20">
-          <button onClick={() => history.back()} className="p-1.5 rounded-full hover:bg-white/5 text-slate-350 shrink-0">
+          <button onClick={() => setScreen(AppScreen.GROUPS)} className="p-1.5 rounded-full hover:bg-white/5 text-slate-350 shrink-0">
             <ArrowLeft size={18} />
           </button>
           <h1 className="text-base font-bold tracking-tight text-slate-100 font-rajdhani uppercase">Add Friends</h1>

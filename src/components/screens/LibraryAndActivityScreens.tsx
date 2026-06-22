@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppScreen, SavedFile, ActivityLog } from "../../types";
-import { ArrowLeft, User, MessageSquare, PhoneCall, Heart, Award, Bell, Eye, Star, FileText, CheckCircle, Clock } from "lucide-react";
+import { ArrowLeft, MessageSquare, Heart, Award, Bell, Eye, Star, CheckCircle, Clock, Plus } from "lucide-react";
+import { SupabaseSync } from "../../utils/supabaseSync";
 
 interface ScreenProps {
   setScreen: (scr: AppScreen) => void;
@@ -14,109 +15,83 @@ interface UserProfileScreenProps {
   onBack?: () => void;
 }
 
-const otherUsersData: Record<string, {
-  name: string;
-  avatar: string;
-  username: string;
-  bio: string;
-  posts: number;
-  likes: number;
-  sectors: string;
-  col: string;
-  verified: boolean;
-  credentials: { icon: "award" | "star"; title: string; year: string }[];
-}> = {
-  "Sophia Carter": {
-    name: "Sophia Carter",
-    avatar: "👩‍🚀",
-    username: "@sophia.carter",
-    bio: "Astrophysicist & AI Engineer. Love building cosmic systems and analyzing quantum algorithms. 🛰️🌌",
-    posts: 842,
-    likes: 245,
-    sectors: "12.5K",
-    col: "bg-pink-500/10 text-pink-400",
-    verified: true,
-    credentials: [
-      { icon: "award", title: "Cosmic Architecture Laureate", year: "2026" },
-      { icon: "star", title: "Alpha Systems Pioneer", year: "Veteran" }
-    ]
-  },
-  "AI Assistant": {
-    name: "AI Assistant",
-    avatar: "🤖",
-    username: "@veltrixa.assistant",
-    bio: "Official AI Assistant of Veltrixa. Designed for sleek conversation, cybernetic tasks, and instant knowledge delivery. 🧠✨",
-    posts: 12050,
-    likes: 9999,
-    sectors: "120K",
-    col: "bg-purple-500/15 text-purple-400",
-    verified: true,
-    credentials: [
-      { icon: "award", title: "Core Intelligence Engine", year: "AI" },
-      { icon: "star", title: "Quantum Multi-Core Network", year: "v3.5" }
-    ]
-  },
-  "Creative Spark AI": {
-    name: "Creative Spark AI",
-    avatar: "🎨",
-    username: "@creative.spark",
-    bio: "Generative AI specializing in creative writing, sci-fi plots, futuristic lore, and digital canvas ideas. ✍️🌠",
-    posts: 4210,
-    likes: 3500,
-    sectors: "45K",
-    col: "bg-cyan-500/10 text-cyan-400",
-    verified: true,
-    credentials: [
-      { icon: "award", title: "Literary Spark Processor", year: "Creative" }
-    ]
-  },
-  "Code Assistant AI": {
-    name: "Code Assistant AI",
-    avatar: "💻",
-    username: "@code.helper",
-    bio: "Bespoke development agent trained to parse syntactic blocks, debug complex stacks, and design clean systems. 🛠️⚡",
-    posts: 15400,
-    likes: 12800,
-    sectors: "98K",
-    col: "bg-pink-500/15 text-pink-400",
-    verified: true,
-    credentials: [
-      { icon: "star", title: "Type-Safe Paradigm Guardian", year: "Code" }
-    ]
-  },
-  "Ethan Walker": {
-    name: "Ethan Walker",
-    avatar: "👨‍💻",
-    username: "@ethan.dev",
-    bio: "Quantum system administrator & gamer. Building distributed ledgers on the stellar net. 🎮🛸",
-    posts: 142,
-    likes: 89,
-    sectors: "1.2K",
-    col: "bg-teal-500/10 text-teal-400",
-    verified: false,
-    credentials: [
-      { icon: "star", title: "Quantum Net Cadet", year: "2025" }
-    ]
-  }
-};
-
-// ══════════ 1. SOPHIA CARTER USER PROFILE SCREEN ══════════
+// ══════════ 1. DYNAMIC USER PROFILE SCREEN (SUPABASE POWERED) ══════════
 export function UserProfileScreen({ setScreen, showToast, profileUser, onBack }: UserProfileScreenProps) {
   const [following, setFollowing] = useState(false);
+  const selectedName = profileUser?.name || "Explorer";
 
-  const selectedName = profileUser?.name || "Sophia Carter";
-  const userDetails = otherUsersData[selectedName] || otherUsersData["Sophia Carter"];
+  const [dbUser, setDbUser] = useState({
+    name: selectedName,
+    avatar: "👤",
+    username: `@${selectedName.toLowerCase().replace(/\s+/g, "")}`,
+    bio: "Connecting credentials...",
+    posts: 0,
+    likes: 0,
+    sectors: "0",
+    verified: false,
+    col: "bg-cyan-500/10 text-cyan-400",
+    credentials: [] as { icon: string; title: string; year: string }[]
+  });
 
-  const [likes, setLikes] = useState(userDetails.likes);
+  const [likes, setLikes] = useState(0);
   const [hasLiked, setHasLiked] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const [prevName, setPrevName] = useState(selectedName);
-  if (selectedName !== prevName) {
-    setPrevName(selectedName);
-    setLikes(userDetails.likes);
-    setHasLiked(false);
-    setFollowing(false);
-  }
+  useEffect(() => {
+    async function loadUserProfile() {
+      setLoading(true);
+      try {
+        const { getSupabaseClient } = await import("../../utils/supabase");
+        const supabase = getSupabaseClient();
+        if (supabase) {
+          const { data, error } = await supabase
+            .from("profiles")
+            .select("*")
+            .or(`display_name.eq."${selectedName}",username.eq."${selectedName}"`)
+            .limit(1)
+            .maybeSingle();
+
+          if (!error && data) {
+            setDbUser({
+              name: data.display_name || data.username || selectedName,
+              avatar: data.avatar_url || "👤",
+              username: data.username || `@${selectedName.toLowerCase().replace(/\s+/g, "")}`,
+              bio: data.bio || "No bio has been added to this profile.",
+              posts: data.post_count || 0,
+              likes: data.followers_count || 0,
+              sectors: "Alpha Node",
+              verified: data.followers_count > 10,
+              col: "bg-cyan-500/10 text-cyan-400",
+              credentials: []
+            });
+            setLikes(data.followers_count || 0);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Could not fetch user profile from public.profiles table: ", err);
+      } finally {
+        setLoading(false);
+      }
+
+      // Safe clean empty-state fallback (Never show mock/plagiarized datasets)
+      setDbUser({
+        name: selectedName,
+        avatar: "👤",
+        username: `@${selectedName.toLowerCase().replace(/\s+/g, "")}`,
+        bio: "Profile bio is empty.",
+        posts: 0,
+        likes: 0,
+        sectors: "0",
+        verified: false,
+        col: "bg-cyan-500/10 text-cyan-400",
+        credentials: []
+      });
+      setLikes(0);
+    }
+
+    loadUserProfile();
+  }, [selectedName]);
 
   const handleLike = () => {
     if (hasLiked) {
@@ -125,7 +100,7 @@ export function UserProfileScreen({ setScreen, showToast, profileUser, onBack }:
     } else {
       setLikes(likes + 1);
       setHasLiked(true);
-      showToast(`Profile liked! ${userDetails.name} has been notified.`);
+      showToast(`Logged like count update! ${dbUser.name} has been notified.`);
     }
   };
 
@@ -152,33 +127,28 @@ export function UserProfileScreen({ setScreen, showToast, profileUser, onBack }:
               <div className="w-full h-full rounded-full bg-slate-950" />
             </div>
             <div className="absolute inset-2 rounded-full overflow-hidden bg-slate-900 border border-purple-500/20 flex items-center justify-center">
-              <span className="text-4xl">{userDetails.avatar}</span>
+              <span className="text-4xl">{dbUser.avatar}</span>
             </div>
-            {userDetails.verified && (
-              <div className="absolute bottom-1 right-1 w-6 h-6 rounded-full bg-gradient-to-r from-cyan-400 to-purple-500 flex items-center justify-center border-2 border-slate-950 text-[10px] text-white font-bold">
-                ✔
-              </div>
-            )}
           </div>
 
           <div className="flex items-center gap-1.5">
-            <h2 className="text-lg font-bold text-slate-100 tracking-wide">{userDetails.name}</h2>
-            {userDetails.verified && (
+            <h2 className="text-sm font-bold text-slate-100 tracking-wide">{dbUser.name}</h2>
+            {dbUser.verified && (
               <span className="text-[10px] bg-gradient-to-r from-cyan-400 to-purple-500/8 border border-cyan-500/30 px-1.5 py-0.5 rounded-md text-white font-bold tracking-widest uppercase">
                 Verif
               </span>
             )}
           </div>
-          <div className="text-xs text-cyan-400 font-medium tracking-wide mt-1">{userDetails.username}</div>
-          <p className="text-xs text-slate-400 font-light text-center mt-3 max-w-[280px] leading-relaxed">
-            {userDetails.bio}
+          <div className="text-xs text-cyan-400 font-medium tracking-wide mt-1">{dbUser.username}</div>
+          <p className="text-xs text-slate-450 font-light text-center mt-3 max-w-[280px] leading-relaxed">
+            {dbUser.bio}
           </p>
         </div>
 
         {/* Stats Row */}
         <div className="grid grid-cols-3 bg-slate-900/60 border border-white/5 rounded-2xl mx-4 py-4 px-3 my-5">
           <div className="text-center">
-            <div className="text-sm font-bold font-rajdhani text-slate-100">{userDetails.posts}</div>
+            <div className="text-sm font-bold font-rajdhani text-slate-100">{dbUser.posts}</div>
             <div className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mt-1">Posts</div>
           </div>
           <div className="text-center border-x border-slate-800">
@@ -186,41 +156,19 @@ export function UserProfileScreen({ setScreen, showToast, profileUser, onBack }:
             <div className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mt-1">Likes</div>
           </div>
           <div className="text-center">
-            <div className="text-sm font-bold font-rajdhani text-slate-100">{userDetails.sectors}</div>
-            <div className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mt-1">Sectors</div>
+            <div className="text-sm font-bold font-rajdhani text-slate-100">{dbUser.sectors}</div>
+            <div className="text-[10px] text-slate-500 uppercase tracking-widest font-semibold mt-1">Status</div>
           </div>
         </div>
 
-        {/* User Badges */}
-        {userDetails.credentials && userDetails.credentials.length > 0 && (
-          <>
-            <div className="text-[11px] text-slate-500 uppercase tracking-widest font-bold px-6 mb-2">Verified Credentials</div>
-            <div className="flex flex-col gap-2 mx-4 mb-5">
-              {userDetails.credentials.map((cred, i) => (
-                <div key={i} className="flex items-center justify-between p-3.5 bg-slate-900 border border-white/5 rounded-2xl">
-                  <div className="flex items-center gap-3">
-                    {cred.icon === "award" ? (
-                      <Award size={16} className="text-cyan-400" />
-                    ) : (
-                      <Star size={16} className="text-purple-400 animate-pulse" />
-                    )}
-                    <span className="text-xs font-semibold text-slate-200">{cred.title}</span>
-                  </div>
-                  <span className="text-[10px] text-slate-500">{cred.year}</span>
-                </div>
-              ))}
-            </div>
-          </>
-        )}
-
         {/* Action Controls */}
-        <div className="grid grid-cols-2 gap-3.5 px-4">
+        <div className="grid grid-cols-2 gap-3.5 px-4 mt-6">
           <button
             onClick={() => {
               setFollowing(!following);
-              showToast(following ? `Unfollowed ${userDetails.name}` : `Following ${userDetails.name}!`);
+              showToast(following ? `Unfollowed ${dbUser.name}` : `Following ${dbUser.name}!`);
             }}
-            className={`py-3 rounded-xl text-xs font-bold tracking-wider uppercase transition-all flex items-center justify-center gap-1.5 ${
+            className={`py-3 rounded-xl text-xs font-bold tracking-wider uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               following
                 ? "bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 text-green-400"
                 : "bg-gradient-to-r from-cyan-400 to-purple-500 hover:opacity-95 text-white shadow-lg active:scale-95"
@@ -232,7 +180,7 @@ export function UserProfileScreen({ setScreen, showToast, profileUser, onBack }:
             onClick={() => {
               setScreen(AppScreen.AI_CHAT);
             }}
-            className="py-3 bg-white/5 border border-white/10 hover:border-cyan-400/40 rounded-xl text-xs font-bold tracking-wider text-slate-350 uppercase transition-all flex items-center justify-center gap-1.5"
+            className="py-3 bg-white/5 border border-white/10 hover:border-cyan-400/40 rounded-xl text-xs font-bold tracking-wider text-slate-350 uppercase transition-all flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <MessageSquare size={13} />
             Message
@@ -243,14 +191,35 @@ export function UserProfileScreen({ setScreen, showToast, profileUser, onBack }:
   );
 }
 
-// ══════════ 2. RECENT ACTIVITY SCREEN ══════════
+// ══════════ 2. RECENT ACTIVITY SCREEN (SUPABASE FLUID FEED) ══════════
 export function ActivityScreen({ setScreen, showToast }: ScreenProps) {
-  const activities: ActivityLog[] = [
-    { id: "act1", type: "replies", title: "Sophia Carter replied to your plot idea", body: "Check the Galactic Explorers channel for feedback.", time: "10 mins ago", unread: true },
-    { id: "act2", type: "mentions", title: "New login parsed from Chrome browser", body: "Server IP matches your standard session location.", time: "2 hrs ago", unread: false },
-    { id: "act3", type: "reactions", title: "Billing subscription confirmed", body: "Premium plan renews is scheduled for next month.", time: "Yesterday", unread: false },
-    { id: "act4", type: "mentions", title: "Liam Johnson mentioned you in Developers Hub", body: "Can you review the Three.js canvas loader script?", time: "May 20", unread: false },
-  ];
+  const [activities, setActivities] = useState<ActivityLog[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    async function fetchLogs() {
+      setLoading(true);
+      try {
+        const data = await SupabaseSync.pullActivities();
+        setActivities(data || []);
+      } catch (err) {
+        console.warn("Offline fallback for activities active.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchLogs();
+  }, []);
+
+  const handleClear = async () => {
+    try {
+      await SupabaseSync.clearAllActivities();
+      setActivities([]);
+      showToast("Cleared activity cache!");
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   return (
     <div className="screen w-full max-w-[420px] h-full max-h-[860px] bg-slate-950/85 backdrop-blur-2xl border border-purple-500/25 rounded-[36px] flex flex-col overflow-hidden relative shadow-[0_0_60px_rgba(155,93,229,0.12)]">
@@ -258,11 +227,21 @@ export function ActivityScreen({ setScreen, showToast }: ScreenProps) {
 
       <div className="flex-1 overflow-y-auto scrollbar-none pb-12">
         {/* Header */}
-        <div className="flex items-center gap-3 px-6 pt-5 pb-3 bg-slate-950/70 backdrop-blur-md sticky top-0 z-20">
-          <button onClick={() => setScreen(AppScreen.MAIN)} className="p-1.5 rounded-full hover:bg-white/5 text-slate-350 shrink-0">
-            <ArrowLeft size={18} />
-          </button>
-          <h1 className="text-base font-bold tracking-tight text-slate-100 font-rajdhani uppercase">Notifications</h1>
+        <div className="flex items-center justify-between px-6 pt-5 pb-3 bg-slate-950/70 backdrop-blur-md sticky top-0 z-20">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setScreen(AppScreen.MAIN)} className="p-1.5 rounded-full hover:bg-white/5 text-slate-350 shrink-0">
+              <ArrowLeft size={18} />
+            </button>
+            <h1 className="text-base font-bold tracking-tight text-slate-100 font-rajdhani uppercase">Notifications</h1>
+          </div>
+          {activities.length > 0 && (
+            <button
+              onClick={handleClear}
+              className="text-xs text-red-400 hover:text-red-300 transition-colors"
+            >
+              Clear All
+            </button>
+          )}
         </div>
 
         {/* Activity Feed */}
@@ -270,17 +249,17 @@ export function ActivityScreen({ setScreen, showToast }: ScreenProps) {
           {activities.map((a) => (
             <div
               key={a.id}
-              onClick={() => showToast(`Opening activity detail: ${a.title}`)}
+              onClick={() => showToast(`Opening notification: ${a.title}`)}
               className={`p-4 rounded-2xl border cursor-pointer hover:scale-[1.01] transition-all flex gap-3 ${
                 a.unread
-                  ? "bg-purple-950/15 border-purple-500/40 shadow-[0_0_12px_rgba(155,93,229,0.1)] animate-bounce-subtle"
+                  ? "bg-purple-950/15 border-purple-500/40 shadow-[0_0_12px_rgba(155,93,229,0.1)]"
                   : "bg-slate-900 border-white/5"
               }`}
             >
               <div className="shrink-0 mt-0.5">
                 {a.unread ? (
                   <div className="w-8.5 h-8.5 rounded-xl bg-purple-500/20 flex items-center justify-center text-purple-400">
-                    <Bell size={15} className="animate-wiggle" />
+                    <Bell size={15} />
                   </div>
                 ) : (
                   <div className="w-8.5 h-8.5 rounded-xl bg-slate-800 flex items-center justify-center text-slate-500">
@@ -303,22 +282,68 @@ export function ActivityScreen({ setScreen, showToast }: ScreenProps) {
               </div>
             </div>
           ))}
+
+          {!loading && activities.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-20 px-6 text-center">
+              <div className="w-16 h-16 rounded-full bg-slate-900 border border-white/5 flex items-center justify-center text-2xl text-slate-600 mb-4">
+                🔔
+              </div>
+              <h3 className="text-sm font-bold text-slate-350 tracking-wide font-rajdhani uppercase">All Clear!</h3>
+              <p className="text-xs text-slate-500 mt-2 max-w-[240px] leading-relaxed">
+                No new alerts or log mentions mapped to this cloud workspace coordinate.
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </div>
   );
 }
 
-// ══════════ 3. SAVED FILES LIBRARY SCREEN ══════════
+// ══════════ 3. SAVED FILES LIBRARY SCREEN (SUPABASE INTEGRATION) ══════════
 export function FilesScreen({ setScreen, showToast }: ScreenProps) {
   const [search, setSearch] = useState("");
+  const [files, setFiles] = useState<SavedFile[]>([]);
+  const [loading, setLoading] = useState(false);
 
-  const files: SavedFile[] = [
-    { id: "f1", name: "galactic_nebula_chart.pdf", size: "14.5 MB", format: "pdf", date: "Today" },
-    { id: "f2", name: "quantum_node_loader.ts", size: "348 KB", format: "code", date: "Yesterday" },
-    { id: "f3", name: "interstellar_mission_log.txt", size: "1.2 MB", format: "doc", date: "May 20" },
-    { id: "f4", name: "three_js_background_visualizer.tsx", size: "520 KB", format: "code", date: "May 18" },
-  ];
+  useEffect(() => {
+    async function fetchFiles() {
+      setLoading(true);
+      try {
+        const data = await SupabaseSync.pullFiles();
+        setFiles(data || []);
+      } catch (err) {
+        console.warn("Offline fallback for files active.");
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchFiles();
+  }, []);
+
+  const handleUploadSimulate = async () => {
+    const names = ["workspace_security_auth.pem", "matrix_quantum_nodes.bin", "telemetry_coordinate_logs.json", "three_js_mesh_loader.ts"];
+    const randomName = names[Math.floor(Math.random() * names.length)];
+    const formats = ["key", "bin", "json", "code"];
+    const format = formats[names.indexOf(randomName)];
+
+    const newFile: SavedFile = {
+      id: "f_" + Date.now(),
+      name: randomName,
+      size: `${(Math.random() * 8 + 0.5).toFixed(1)} MB`,
+      format: format,
+      date: "Just Now",
+      category: "documents"
+    };
+
+    try {
+      await SupabaseSync.pushFile(newFile);
+      setFiles([newFile, ...files]);
+      showToast(`Logged file node insertion: ${randomName}`);
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const filteredFiles = files.filter((f) => f.name.toLowerCase().includes(search.toLowerCase()));
 
@@ -328,11 +353,20 @@ export function FilesScreen({ setScreen, showToast }: ScreenProps) {
 
       <div className="flex-1 overflow-y-auto scrollbar-none pb-12">
         {/* Header */}
-        <div className="flex items-center gap-3 px-6 pt-5 pb-3 bg-slate-950/70 backdrop-blur-md sticky top-0 z-20">
-          <button onClick={() => setScreen(AppScreen.MAIN)} className="p-1.5 rounded-full hover:bg-white/5 text-slate-350 shrink-0">
-            <ArrowLeft size={18} />
+        <div className="flex items-center justify-between px-6 pt-5 pb-3 bg-slate-950/70 backdrop-blur-md sticky top-0 z-20">
+          <div className="flex items-center gap-3">
+            <button onClick={() => setScreen(AppScreen.MAIN)} className="p-1.5 rounded-full hover:bg-white/5 text-slate-350 shrink-0">
+              <ArrowLeft size={18} />
+            </button>
+            <h1 className="text-base font-bold tracking-tight text-slate-100 font-rajdhani uppercase">Library Docs</h1>
+          </div>
+          <button
+            onClick={handleUploadSimulate}
+            className="p-1.5 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 rounded-full border border-cyan-500/30 transition-all cursor-pointer"
+            title="Upload Document Node"
+          >
+            <Plus size={15} />
           </button>
-          <h1 className="text-base font-bold tracking-tight text-slate-100 font-rajdhani uppercase">Library Docs</h1>
         </div>
 
         {/* Input */}
@@ -343,7 +377,7 @@ export function FilesScreen({ setScreen, showToast }: ScreenProps) {
             placeholder="Search saved file cache..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="flex-1 bg-transparent text-xs text-slate-200 outline-none"
+            className="flex-1 bg-transparent text-xs text-slate-200 outline-none placeholder:text-slate-600"
           />
         </div>
 
@@ -357,7 +391,7 @@ export function FilesScreen({ setScreen, showToast }: ScreenProps) {
             >
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-cyan-500/10 flex items-center justify-center shrink-0 border border-cyan-500/20 text-cyan-400 font-mono text-[10px] group-hover:bg-cyan-500/15">
-                  {file.format.toUpperCase()}
+                  {(file.format || "bin").toUpperCase()}
                 </div>
                 <div>
                   <div className="text-xs font-semibold tracking-wide text-slate-200 text-ellipsis overflow-hidden break-all max-w-[200px]">{file.name}</div>
@@ -371,8 +405,16 @@ export function FilesScreen({ setScreen, showToast }: ScreenProps) {
               <span className="text-slate-500 group-hover:text-cyan-400 group-hover:translate-x-1.5 transition-all text-xs">➔</span>
             </div>
           ))}
-          {filteredFiles.length === 0 && (
-            <p className="text-xs text-slate-600 text-center py-6">No matching documents cached.</p>
+          {!loading && filteredFiles.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+              <div className="w-12 h-12 rounded-full bg-slate-900 border border-white/5 flex items-center justify-center text-xl text-slate-600 mb-4">
+                📂
+              </div>
+              <h3 className="text-xs font-bold text-slate-350 tracking-wide font-rajdhani uppercase">Library Empty</h3>
+              <p className="text-[11px] text-slate-500 mt-1.5 max-w-[200px] leading-relaxed">
+                Click + at the top right to upload a secure document node.
+              </p>
+            </div>
           )}
         </div>
       </div>

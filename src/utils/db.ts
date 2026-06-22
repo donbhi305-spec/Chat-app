@@ -6,64 +6,21 @@ import { ChatMessage, CallLog, SavedFile, ActivityLog, UserProfileData } from ".
 // which they can completely modify, override, append, or delete.
 
 const DEFAULT_USER_PROFILE: UserProfileData = {
-  displayName: "Veltrixa Explorer",
-  email: "guest_explorer@veltrixa.network",
-  username: "@veltrixa.explorer",
-  bio: "Quantum network operator, digital artisan, and workspace architect. Securing cloud run modules on the fly. 🛰️🌌",
-  location: "Sector 7G (Orbital Hub)",
-  website: "https://veltrixa.network"
+  displayName: "New User",
+  email: "",
+  username: "@username",
+  bio: "",
+  location: "",
+  website: ""
 };
 
-const DEFAULT_CHATS: Record<string, ChatMessage[]> = {
-  "Sophia Carter": [
-    { id: "s1", sender: "Sophia", text: "Welcome to Veltrixa network nodes! I've mapped the custom ThreeJS orbital grids.", time: "10:15 AM" },
-    { id: "s2", sender: "user", text: "Looks amazing, Sophia! Thanks for the clean setup.", time: "10:16 AM" },
-    { id: "s3", sender: "Sophia", text: "Always happy to assist. Let me know if you want to explore coordinate telemetry graphs next!", time: "10:17 AM" }
-  ],
-  "AI Assistant": [
-    { id: "ai1", sender: "bot", text: "Greetings Explorer. Veltrixa Core systems are online and fully synched with Gemini.", time: "09:00 AM" }
-  ],
-  "Creative Spark AI": [
-    { id: "cs1", sender: "bot", text: "Stellar imagination matrix engaged. Send me a sci-fi prompt or storyline to manifest futuristic lore!", time: "Yesterday" }
-  ],
-  "Code Assistant AI": [
-    { id: "cd1", sender: "bot", text: "Code Assistant ready. Paste any syntactic algorithms or system schemas to analyze optimization steps.", time: "May 20" }
-  ],
-  "Ethan Walker": [
-    { id: "e1", sender: "Ethan", text: "Hey! Did you see the new quantum ledgers on the stellar net?", time: "May 18" },
-    { id: "e2", sender: "user", text: "Yes, Ethan, just reviewing the cryptographic blocks now.", time: "May 18" },
-    { id: "e3", sender: "Ethan", text: "Super cool, isn't it? Talk to you later!", time: "May 19" }
-  ],
-  "AI Innovators": [
-    { id: "g1_1", sender: "Sophia", text: "Nice work on the visual loader rings! The depth fields look superb.", time: "10:15 AM" },
-    { id: "g1_2", sender: "Liam", text: "Agreed. Adding responsive vector grids handles expansion beautifully.", time: "10:18 AM" }
-  ],
-  "Space Enthusiasts": [
-    { id: "g2_1", sender: "Maya", text: "Did anyone catch the stellar launch windows telemetry data yesterday?", time: "Yesterday" },
-    { id: "g2_2", sender: "Alex", text: "Yes! Peak velocity crossed coordinates safely on schedule.", time: "Yesterday" }
-  ]
-};
+const DEFAULT_CHATS: Record<string, ChatMessage[]> = {};
 
-const DEFAULT_CALLS: CallLog[] = [
-  { id: "call1", name: "Sophia Carter", type: "incoming", time: "10:30 AM" },
-  { id: "call2", name: "Liam Johnson", type: "outgoing", time: "Yesterday" },
-  { id: "call3", name: "Maya Patel", type: "missed", time: "Yesterday" },
-  { id: "call4", name: "Ethan Walker", type: "incoming", time: "May 20" }
-];
+const DEFAULT_CALLS: CallLog[] = [];
 
-const DEFAULT_FILES: SavedFile[] = [
-  { id: "f1", name: "galactic_nebula_chart.pdf", size: "14.5 MB", format: "pdf", date: "Today", category: "documents" },
-  { id: "f2", name: "quantum_node_loader.ts", size: "348 KB", format: "code", date: "Yesterday", category: "documents" },
-  { id: "f3", name: "interstellar_mission_log.txt", size: "1.2 MB", format: "doc", date: "May 20", category: "documents" },
-  { id: "f4", name: "three_js_background_visualizer.tsx", size: "520 KB", format: "code", date: "May 18", category: "documents" }
-];
+const DEFAULT_FILES: SavedFile[] = [];
 
-const DEFAULT_ACTIVITIES: ActivityLog[] = [
-  { id: "act1", type: "replies", title: "Sophia Carter replied to your plot idea", body: "Check the Galactic Explorers channel for feedback.", time: "10 mins ago", unread: true },
-  { id: "act2", type: "mentions", title: "New login parsed from Chrome browser", body: "Server IP matches your standard session location.", time: "2 hrs ago", unread: false },
-  { id: "act3", type: "reactions", title: "Billing subscription confirmed", body: "Premium plan renewal is scheduled for next month.", time: "Yesterday", unread: false },
-  { id: "act4", type: "mentions", title: "Liam Johnson mentioned you in Developers Hub", body: "Can you review the Three.js canvas loader script?", time: "May 20", unread: false }
-];
+const DEFAULT_ACTIVITIES: ActivityLog[] = [];
 
 // Helper to interact with browser local storage keys
 const getStorageJSON = <T>(key: string, fallback: T): T => {
