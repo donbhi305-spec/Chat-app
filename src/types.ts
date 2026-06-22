@@ -41,6 +41,7 @@ export interface ChatMessage {
   text: string;
   time: string;
   avatarColor?: string;
+  pinned?: boolean;
 }
 
 export interface UserProfileData {

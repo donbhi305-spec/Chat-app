@@ -1,7 +1,27 @@
 import React, { useState, useRef, useEffect } from "react";
 import { AppScreen, ChatMessage } from "../../types";
-import { ArrowLeft, Send, Brain } from "lucide-react";
+import { ArrowLeft, Send, Brain, Pin } from "lucide-react";
 import { VDB } from "../../utils/db";
+
+// ══════════ TYPING INDICATOR COMPONENT ══════════
+export function TypingIndicator({ name }: { name: string }) {
+  return (
+    <div className="self-start flex flex-col items-start max-w-[80%] animate-fade-in mb-2 mt-1 shrink-0">
+      <div className="text-[10px] text-slate-500 mb-1 px-1 font-semibold flex items-center gap-1.5">
+        <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+        {name}
+      </div>
+      <div className="p-3 bg-slate-900 border border-white/5 rounded-2xl rounded-tl-none flex items-center gap-1.5 shadow-md">
+        <span className="flex gap-1 items-center shrink-0">
+          <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
+          <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
+          <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
+        </span>
+        <span className="text-[10px] text-slate-450 italic ml-1 select-none">typing...</span>
+      </div>
+    </div>
+  );
+}
 
 interface AiAssistantProps {
   setScreen: (scr: AppScreen) => void;
@@ -252,13 +272,7 @@ export function AiChatScreen({ setScreen, showToast, activeDm, setSelectedProfil
         ))}
 
         {loading && (
-          <div className="self-start flex flex-col items-start max-w-[80%]">
-            <div className="p-4 bg-slate-900 border border-white/5 rounded-2xl rounded-tl-none flex items-center gap-2">
-              <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" />
-              <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
-              <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" style={{ animationDelay: "0.4s" }} />
-            </div>
-          </div>
+          <TypingIndicator name={chatId} />
         )}
 
         <div ref={scrollRef} />
@@ -291,10 +305,59 @@ export function AiChatScreen({ setScreen, showToast, activeDm, setSelectedProfil
 export function GroupChatScreen1({ setScreen, showToast, onBack }: Omit<AiAssistantProps, "messages" | "setMessages">) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>(() => VDB.getChatHistory("AI Innovators"));
+  const [isTyping, setIsTyping] = useState(false);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<Record<string, NodeJS.Timeout>>({});
+
+  // Auto scroll to bottom
+  useEffect(() => {
+    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isTyping]);
+
+  // Timed trigger to remove visual selection highlight
+  useEffect(() => {
+    if (highlightedId) {
+      const timer = setTimeout(() => {
+        setHighlightedId(null);
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightedId]);
+
+  const startPress = (id: string, text: string) => {
+    if (timerRef.current[id]) {
+      clearTimeout(timerRef.current[id]);
+    }
+    timerRef.current[id] = setTimeout(() => {
+      handleTogglePin(id, text);
+    }, 600);
+  };
+
+  const endPress = (id: string) => {
+    if (timerRef.current[id]) {
+      clearTimeout(timerRef.current[id]);
+      delete timerRef.current[id];
+    }
+  };
+
+  const handleTogglePin = (id: string, text: string) => {
+    const updated = messages.map((m, index) => {
+      const msgId = m.id || `msg-${index}`;
+      if (msgId === id) {
+        const nextState = !m.pinned;
+        showToast(nextState ? `Pinned message: "${text.substring(0, 20)}..."` : "Unpinned message");
+        return { ...m, pinned: nextState };
+      }
+      return m;
+    });
+    setMessages(updated);
+    VDB.saveChatHistory("AI Innovators", updated);
+  };
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() || isTyping) return;
 
     const userMsg: ChatMessage = {
       id: "usr_" + Date.now(),
@@ -307,6 +370,7 @@ export function GroupChatScreen1({ setScreen, showToast, onBack }: Omit<AiAssist
     setMessages(updated);
     VDB.saveChatHistory("AI Innovators", updated);
     setInput("");
+    setIsTyping(true);
 
     // Simulate instant reaction
     setTimeout(() => {
@@ -322,15 +386,18 @@ export function GroupChatScreen1({ setScreen, showToast, onBack }: Omit<AiAssist
         VDB.saveChatHistory("AI Innovators", next);
         return next;
       });
+      setIsTyping(false);
     }, 1500);
   };
+
+  const pinnedMessages = messages.filter(m => m.pinned);
 
   return (
     <div className="screen w-full max-w-[420px] h-full max-h-[860px] bg-slate-950/85 backdrop-blur-2xl border border-purple-500/25 rounded-[36px] flex flex-col justify-between overflow-hidden relative shadow-[0_0_60px_rgba(155,93,229,0.12)] font-sans">
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[40%] h-[2px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent z-10" />
 
       {/* Header */}
-      <div className="flex items-center gap-3 px-6 pt-5 pb-3 bg-slate-950/70 backdrop-blur-md sticky top-0 z-20">
+      <div className="flex items-center gap-3 px-6 pt-5 pb-3 bg-slate-950/70 backdrop-blur-md sticky top-0 z-20 shrink-0">
         <button onClick={() => onBack ? onBack() : setScreen(AppScreen.GROUPS)} className="p-1.5 rounded-full hover:bg-white/5 text-slate-350 shrink-0">
           <ArrowLeft size={18} />
         </button>
@@ -340,21 +407,99 @@ export function GroupChatScreen1({ setScreen, showToast, onBack }: Omit<AiAssist
         </div>
       </div>
 
+      {/* Pinned Messages Bar */}
+      {pinnedMessages.length > 0 && (
+        <div className="mx-4.5 mt-2 p-2.5 bg-cyan-950/20 border border-cyan-500/20 rounded-xl flex items-center justify-between gap-2.5 animate-fade-in z-10 shrink-0">
+          <div 
+            onClick={() => {
+              const latestPinned = pinnedMessages[pinnedMessages.length - 1];
+              const safeId = latestPinned.id || `msg-${messages.indexOf(latestPinned)}`;
+              setHighlightedId(safeId);
+              const element = document.getElementById(`msg-bubble-${safeId}`);
+              if (element) {
+                element.scrollIntoView({ behavior: "smooth", block: "center" });
+              } else {
+                showToast(`Pinned: "${latestPinned.text}"`);
+              }
+            }}
+            className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer hover:opacity-80 transition-all text-left"
+          >
+            <Pin size={13} className="text-cyan-400 fill-cyan-400 rotate-45 shrink-0" />
+            <div className="flex-1 min-width-0">
+              <div className="text-[9px] text-cyan-400 font-bold uppercase tracking-wider">Pinned Message</div>
+              <div className="text-[11px] text-slate-350 truncate font-light leading-snug">
+                {pinnedMessages[pinnedMessages.length - 1].text}
+              </div>
+            </div>
+          </div>
+          <button 
+            onClick={() => {
+              const latestPinned = pinnedMessages[pinnedMessages.length - 1];
+              const safeId = latestPinned.id || `msg-${messages.indexOf(latestPinned)}`;
+              handleTogglePin(safeId, latestPinned.text);
+            }}
+            className="p-1 px-2 text-[9px] text-purple-400 hover:text-purple-300 border border-purple-500/20 rounded hover:bg-purple-500/10 transition-all font-semibold uppercase tracking-wider shrink-0"
+          >
+            Unpin
+          </button>
+        </div>
+      )}
+
       {/* Feed */}
       <div className="flex-1 overflow-y-auto px-4.5 py-4 flex flex-col gap-4.5 scrollbar-none">
-        {messages.map((m, idx) => (
-          <div key={m.id || idx} className={`flex flex-col max-w-[80%] ${m.sender === "user" ? "self-end items-end" : "self-start items-start"}`}>
-            <span className="text-[10px] text-slate-500 mb-1 px-1 font-semibold">{m.sender === "user" ? "You" : m.sender}</span>
-            <div className={`p-3.5 rounded-2xl text-xs leading-relaxed ${
-              m.sender === "user"
-                ? "bg-gradient-to-r from-cyan-500/15 to-purple-500/12 border border-purple-500/20 text-slate-200 rounded-tr-none"
-                : "bg-slate-900 border border-white/5 text-slate-250 rounded-tl-none"
-            }`}>
-              {m.text}
+        {messages.map((m, idx) => {
+          const safeId = m.id || `msg-${idx}`;
+          const isHighlighted = highlightedId === safeId;
+          return (
+            <div 
+              key={safeId} 
+              id={`msg-bubble-${safeId}`}
+              onMouseDown={() => startPress(safeId, m.text)}
+              onMouseUp={() => endPress(safeId)}
+              onMouseLeave={() => endPress(safeId)}
+              onTouchStart={() => startPress(safeId, m.text)}
+              onTouchEnd={() => endPress(safeId)}
+              onDoubleClick={() => handleTogglePin(safeId, m.text)}
+              className={`flex flex-col max-w-[80%] ${m.sender === "user" ? "self-end items-end" : "self-start items-start"} select-none cursor-pointer group relative`}
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-[10px] text-slate-500 px-1 font-semibold">
+                  {m.sender === "user" ? "You" : m.sender}
+                </span>
+                {m.pinned && (
+                  <Pin size={10} className="text-cyan-400 fill-cyan-400 rotate-45 shrink-0" />
+                )}
+              </div>
+              <div 
+                className={`p-3.5 rounded-2xl text-xs leading-relaxed transition-all duration-300 ${
+                  m.sender === "user"
+                    ? "bg-gradient-to-r from-cyan-500/15 to-purple-500/12 border text-slate-200 rounded-tr-none"
+                    : "bg-slate-900 border text-slate-250 rounded-tl-none"
+                } ${
+                  m.pinned 
+                    ? "border-cyan-500/40 shadow-[0_0_12px_rgba(34,211,238,0.15)]" 
+                    : "border-white/5"
+                } ${
+                  isHighlighted 
+                    ? "ring-2 ring-cyan-400 ring-offset-2 ring-offset-slate-950 scale-[1.03] shadow-[0_0_20px_rgba(34,211,238,0.3)]" 
+                    : ""
+                }`}
+              >
+                {m.text}
+              </div>
+              <div className="flex items-center gap-1.5 mt-1 px-1">
+                <span className="text-[9px] text-slate-500">{m.time}</span>
+                <span className="text-[8px] text-slate-600 opacity-0 group-hover:opacity-100 transition-all font-light">
+                  (Hold to pin)
+                </span>
+              </div>
             </div>
-            <span className="text-[9px] text-slate-500 mt-1 px-1">{m.time}</span>
-          </div>
-        ))}
+          );
+        })}
+        {isTyping && (
+          <TypingIndicator name="Sophia" />
+        )}
+        <div ref={scrollRef} />
       </div>
 
       {/* Controls */}
@@ -378,10 +523,59 @@ export function GroupChatScreen1({ setScreen, showToast, onBack }: Omit<AiAssist
 export function GroupChatScreen2({ setScreen, showToast, onBack }: Omit<AiAssistantProps, "messages" | "setMessages">) {
   const [input, setInput] = useState("");
   const [messages, setMessages] = useState<ChatMessage[]>(() => VDB.getChatHistory("Space Enthusiasts"));
+  const [isTyping, setIsTyping] = useState(false);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<Record<string, NodeJS.Timeout>>({});
+
+  // Auto scroll to bottom
+  useEffect(() => {
+    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, isTyping]);
+
+  // Timed trigger to remove visual selection highlight
+  useEffect(() => {
+    if (highlightedId) {
+      const timer = setTimeout(() => {
+        setHighlightedId(null);
+      }, 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightedId]);
+
+  const startPress = (id: string, text: string) => {
+    if (timerRef.current[id]) {
+      clearTimeout(timerRef.current[id]);
+    }
+    timerRef.current[id] = setTimeout(() => {
+      handleTogglePin(id, text);
+    }, 600);
+  };
+
+  const endPress = (id: string) => {
+    if (timerRef.current[id]) {
+      clearTimeout(timerRef.current[id]);
+      delete timerRef.current[id];
+    }
+  };
+
+  const handleTogglePin = (id: string, text: string) => {
+    const updated = messages.map((m, index) => {
+      const msgId = m.id || `msg-${index}`;
+      if (msgId === id) {
+        const nextState = !m.pinned;
+        showToast(nextState ? `Pinned message: "${text.substring(0, 20)}..."` : "Unpinned message");
+        return { ...m, pinned: nextState };
+      }
+      return m;
+    });
+    setMessages(updated);
+    VDB.saveChatHistory("Space Enthusiasts", updated);
+  };
 
   const handleSend = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() || isTyping) return;
 
     const userMsg: ChatMessage = {
       id: "usr_" + Date.now(),
@@ -394,7 +588,9 @@ export function GroupChatScreen2({ setScreen, showToast, onBack }: Omit<AiAssist
     setMessages(updated);
     VDB.saveChatHistory("Space Enthusiasts", updated);
     setInput("");
+    setIsTyping(true);
 
+    // Simulate instant reaction
     setTimeout(() => {
       const replyMsg: ChatMessage = {
         id: "space_reply_" + Date.now(),
@@ -408,15 +604,18 @@ export function GroupChatScreen2({ setScreen, showToast, onBack }: Omit<AiAssist
         VDB.saveChatHistory("Space Enthusiasts", next);
         return next;
       });
+      setIsTyping(false);
     }, 1500);
   };
+
+  const pinnedMessages = messages.filter(m => m.pinned);
 
   return (
     <div className="screen w-full max-w-[420px] h-full max-h-[860px] bg-slate-950/85 backdrop-blur-2xl border border-purple-500/25 rounded-[36px] flex flex-col justify-between overflow-hidden relative shadow-[0_0_60px_rgba(155,93,229,0.12)] font-sans">
       <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[40%] h-[2px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent z-10" />
 
       {/* Header */}
-      <div className="flex items-center gap-3 px-6 pt-5 pb-3 bg-slate-950/70 backdrop-blur-md sticky top-0 z-20">
+      <div className="flex items-center gap-3 px-6 pt-5 pb-3 bg-slate-950/70 backdrop-blur-md sticky top-0 z-20 shrink-0">
         <button onClick={() => onBack ? onBack() : setScreen(AppScreen.GROUPS)} className="p-1.5 rounded-full hover:bg-white/5 text-slate-350 shrink-0">
           <ArrowLeft size={18} />
         </button>
@@ -426,21 +625,99 @@ export function GroupChatScreen2({ setScreen, showToast, onBack }: Omit<AiAssist
         </div>
       </div>
 
+      {/* Pinned Messages Bar */}
+      {pinnedMessages.length > 0 && (
+        <div className="mx-4.5 mt-2 p-2.5 bg-cyan-950/20 border border-cyan-500/20 rounded-xl flex items-center justify-between gap-2.5 animate-fade-in z-10 shrink-0">
+          <div 
+            onClick={() => {
+              const latestPinned = pinnedMessages[pinnedMessages.length - 1];
+              const safeId = latestPinned.id || `msg-${messages.indexOf(latestPinned)}`;
+              setHighlightedId(safeId);
+              const element = document.getElementById(`msg-bubble-${safeId}`);
+              if (element) {
+                element.scrollIntoView({ behavior: "smooth", block: "center" });
+              } else {
+                showToast(`Pinned: "${latestPinned.text}"`);
+              }
+            }}
+            className="flex items-center gap-2 min-w-0 flex-1 cursor-pointer hover:opacity-80 transition-all text-left"
+          >
+            <Pin size={13} className="text-cyan-400 fill-cyan-400 rotate-45 shrink-0" />
+            <div className="flex-1 min-width-0">
+              <div className="text-[9px] text-cyan-400 font-bold uppercase tracking-wider">Pinned Message</div>
+              <div className="text-[11px] text-slate-350 truncate font-light leading-snug">
+                {pinnedMessages[pinnedMessages.length - 1].text}
+              </div>
+            </div>
+          </div>
+          <button 
+            onClick={() => {
+              const latestPinned = pinnedMessages[pinnedMessages.length - 1];
+              const safeId = latestPinned.id || `msg-${messages.indexOf(latestPinned)}`;
+              handleTogglePin(safeId, latestPinned.text);
+            }}
+            className="p-1 px-2 text-[9px] text-purple-400 hover:text-purple-300 border border-purple-500/20 rounded hover:bg-purple-500/10 transition-all font-semibold uppercase tracking-wider shrink-0"
+          >
+            Unpin
+          </button>
+        </div>
+      )}
+
       {/* Feed */}
       <div className="flex-1 overflow-y-auto px-4.5 py-4 flex flex-col gap-4.5 scrollbar-none">
-        {messages.map((m, idx) => (
-          <div key={m.id || idx} className={`flex flex-col max-w-[80%] ${m.sender === "user" ? "self-end items-end" : "self-start items-start"}`}>
-            <span className="text-[10px] text-slate-500 mb-1 px-1 font-semibold">{m.sender === "user" ? "You" : m.sender}</span>
-            <div className={`p-3.5 rounded-2xl text-xs leading-relaxed ${
-              m.sender === "user"
-                ? "bg-gradient-to-r from-cyan-500/15 to-purple-500/12 border border-purple-500/20 text-slate-200 rounded-tr-none"
-                : "bg-slate-900 border border-white/5 text-slate-250 rounded-tl-none"
-            }`}>
-              {m.text}
+        {messages.map((m, idx) => {
+          const safeId = m.id || `msg-${idx}`;
+          const isHighlighted = highlightedId === safeId;
+          return (
+            <div 
+              key={safeId} 
+              id={`msg-bubble-${safeId}`}
+              onMouseDown={() => startPress(safeId, m.text)}
+              onMouseUp={() => endPress(safeId)}
+              onMouseLeave={() => endPress(safeId)}
+              onTouchStart={() => startPress(safeId, m.text)}
+              onTouchEnd={() => endPress(safeId)}
+              onDoubleClick={() => handleTogglePin(safeId, m.text)}
+              className={`flex flex-col max-w-[80%] ${m.sender === "user" ? "self-end items-end" : "self-start items-start"} select-none cursor-pointer group relative`}
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-[10px] text-slate-500 px-1 font-semibold">
+                  {m.sender === "user" ? "You" : m.sender}
+                </span>
+                {m.pinned && (
+                  <Pin size={10} className="text-cyan-400 fill-cyan-400 rotate-45 shrink-0" />
+                )}
+              </div>
+              <div 
+                className={`p-3.5 rounded-2xl text-xs leading-relaxed transition-all duration-300 ${
+                  m.sender === "user"
+                    ? "bg-gradient-to-r from-cyan-500/15 to-purple-500/12 border text-slate-200 rounded-tr-none"
+                    : "bg-slate-900 border text-slate-250 rounded-tl-none"
+                } ${
+                  m.pinned 
+                    ? "border-cyan-500/40 shadow-[0_0_12px_rgba(34,211,238,0.15)]" 
+                    : "border-white/5"
+                } ${
+                  isHighlighted 
+                    ? "ring-2 ring-cyan-400 ring-offset-2 ring-offset-slate-950 scale-[1.03] shadow-[0_0_20px_rgba(34,211,238,0.3)]" 
+                    : ""
+                }`}
+              >
+                {m.text}
+              </div>
+              <div className="flex items-center gap-1.5 mt-1 px-1">
+                <span className="text-[9px] text-slate-500">{m.time}</span>
+                <span className="text-[8px] text-slate-600 opacity-0 group-hover:opacity-100 transition-all font-light">
+                  (Hold to pin)
+                </span>
+              </div>
             </div>
-            <span className="text-[9px] text-slate-500 mt-1 px-1">{m.time}</span>
-          </div>
-        ))}
+          );
+        })}
+        {isTyping && (
+          <TypingIndicator name="Maya" />
+        )}
+        <div ref={scrollRef} />
       </div>
 
       {/* Controls */}

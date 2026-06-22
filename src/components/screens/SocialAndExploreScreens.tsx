@@ -1,5 +1,5 @@
+import React, { useState, useEffect } from "react";
 import { AppScreen } from "../../types";
-import { useState, useEffect } from "react";
 import { VDB } from "../../utils/db";
 import { Search, Compass, MessageSquare, Plus, UserPlus, PhoneCall, Sparkles, Code, Image as ImageIcon, ArrowLeft, Globe, Star, Users, MapPin, ChevronRight, User } from "lucide-react";
 
